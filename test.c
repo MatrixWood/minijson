@@ -18,47 +18,54 @@ static int test_pass = 0;
 		}\
 	}while(0)
 
-#define EXPEC_EQ_INT(expect, actual) EXPEC_EQ_BASE((expect) == (actual), expect, actual, "%d")
+#define EXPECT_EQ_INT(expect, actual) EXPECT_EQ_BASE((expect) == (actual), expect, actual, "%d")
 
-static void test_parser_null()
-{
+static void test_parse_null() {
 	MJ_value v;
 	v.type = MJ_FALSE;
-    EXPECT_EQ_INT(MJ_PARSE_EXPECT_VALUE, MJ_parse(&v, ""));
-    EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));
+	EXPECT_EQ_INT(MJ_PARSE_OK, MJ_parse(&v, "null"));
+	EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));
+}
 
-    v.type = MJ_FALSE;
-    EXPECT_EQ_INT(MJ_PARSE_EXPECT_VALUE, MJ_parse(&v, " "));
-    EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));
+static void test_parse_expect_value() {
+	MJ_value v;
+
+	v.type = MJ_FALSE;
+	EXPECT_EQ_INT(MJ_PARSE_EXPECT_VALUE, MJ_parse(&v, ""));
+	EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));
+
+	v.type = MJ_FALSE;
+	EXPECT_EQ_INT(MJ_PARSE_EXPECT_VALUE, MJ_parse(&v, " "));
+	EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));
 }
 
 static void test_parse_invalid_value() {
-    MJ_value v;
-    v.type = MJ_FALSE;
-    EXPECT_EQ_INT(MJ_PARSE_INVALID_VALUE, MJ_parse(&v, "nul"));
-    EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));
+	MJ_value v;
+	v.type = MJ_FALSE;
+	EXPECT_EQ_INT(MJ_PARSE_INVALID_VALUE, MJ_parse(&v, "nul"));
+	EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));
 
-    v.type = MJ_FALSE;
-    EXPECT_EQ_INT(MJ_PARSE_INVALID_VALUE, MJ_parse(&v, "?"));
-    EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));
+	v.type = MJ_FALSE;
+	EXPECT_EQ_INT(MJ_PARSE_INVALID_VALUE, MJ_parse(&v, "?"));
+	EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));
 }
 
 static void test_parse_root_not_singular() {
-    MJ_value v;
-    v.type = MJ_FALSE;
-    EXPECT_EQ_INT(MJ_PARSE_ROOT_NOT_SINGULAR, MJ_parse(&v, "null x"));
-    EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));
+	MJ_value v;
+	v.type = MJ_FALSE;
+	EXPECT_EQ_INT(MJ_PARSE_ROOT_NOT_SINGULAR, MJ_parse(&v, "null x"));
+	EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));
 }
 
 static void test_parse() {
-    test_parse_null();
-    test_parse_expect_value();
-    test_parse_invalid_value();
-    test_parse_root_not_singular();
+	test_parse_null();
+	test_parse_expect_value();
+	test_parse_invalid_value();
+	test_parse_root_not_singular();
 }
 
 int main() {
-    test_parse();
-    printf("%d/%d (%3.2f%%) passed\n", test_pass, test_count, test_pass * 100.0 / test_count);
-    return main_ret;
+	test_parse();
+	printf("%d/%d (%3.2f%%) passed\n", test_pass, test_count, test_pass * 100.0 / test_count);
+	return main_ret;
 }

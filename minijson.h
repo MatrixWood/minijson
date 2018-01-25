@@ -8,7 +8,7 @@ typedef enum
 	MJ_TRUE,
 	MJ_NUMBER,
 	MJ_STRING,
-	MJ_ARRAY
+	MJ_ARRAY,
 	MJ_OBJECT
 }MJ_type;
 
@@ -19,9 +19,9 @@ typedef struct
 
 enum
 {
-	MJ_PARSE_OK = 0;
+	MJ_PARSE_OK = 0,
 	MJ_PARSE_EXPECT_VALUE,
-	MJ_PARSE_INVAILD_VALUE,
+	MJ_PARSE_INVALID_VALUE,
 	MJ_PARSE_ROOT_NOT_SINGULAR
 };
 

@@ -21,7 +21,7 @@ static int MJ_parse_null(MJ_context *c, MJ_value *v)
 {
 	EXPECT(c, 'n');
 	if(c->json[0] != 'u' || c->json[1] != 'l' || c->json[2] != 'l')
-		return MJ_PARSE_INVAILD_VALUE;
+		return MJ_PARSE_INVALID_VALUE;
 	c->json += 3;
 	v->type = MJ_NULL;
 	return MJ_PARSE_OK;
@@ -33,11 +33,11 @@ static int MJ_parse_value(MJ_context *c, MJ_value *v)
 	{
 		case 'n': return MJ_parse_null(c, v);
 		case '\0': return MJ_PARSE_EXPECT_VALUE;
-		default: return MJ_PARSE_INVAILD_VALUE;
+		default: return MJ_PARSE_INVALID_VALUE;
 	}
 }
 
-int MJ_parse(MJ_context *c, MJ_value *v)
+int MJ_parse(MJ_value *v, const char *json)
 {
 	MJ_context c;
 	assert(v != NULL);
