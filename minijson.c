@@ -3,12 +3,12 @@
 #include <errno.h>		/* error, ERANGE */
 #include <math.h>		/* HUGE_VAL */
 #include <stdlib.h>		/* NULL, strtod() */
-#include <string.h>  	/* memcpy() */
+#include <string.h>		/* memcpy() */
 
-#define EXPECT(c, ch) 	do { assert(*c->json == (ch)); c->json++; } while(0)
+#define EXPECT(c, ch)	do { assert(*c->json == (ch)); c->json++; } while(0)
 #define ISDIGIT(ch)		((ch) >= '0' && (ch) <= '9')
 #define ISDIGIT1TO9(ch) ((ch) >= '1' && (ch) <= '9')
-#define PUTC(c, ch) do { *(char*)MJ_context_push(c, sizeof(char)) = (ch); } while(0)
+#define PUTC(c, ch)		do { *(char*)MJ_context_push(c, sizeof(char)) = (ch); } while(0)
 
 
 #ifndef MJ_PARSE_STACK_INIT_SIZE
