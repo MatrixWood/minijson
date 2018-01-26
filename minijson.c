@@ -1,8 +1,12 @@
 #include "minijson.h"
-#include <assert.h>
+#include <assert.h>		/* assert() */
+#include <errno.h>		/* error, ERANGE */
+#include <math.h>		/* HUGE_VAL */
 #include <stdlib.h>		/* NULL, strtod() */
 
-#define EXPECT(c, ch) do { assert(*c->json == (ch)); c->json++; } while(0)
+#define EXPECT(c, ch) 	do { assert(*c->json == (ch)); c->json++; } while(0)
+#define ISDIGIT(ch)		((ch) >= '0' && (ch) <= '9')
+#define ISDIGIT1TO9(ch) ((ch) >= '1' && (ch) <= '9')
 
 typedef struct
 {
@@ -26,7 +30,8 @@ static int MJ_parse_null(MJ_context *c, MJ_value *v)
 	v->type = MJ_NULL;
 	return MJ_PARSE_OK;
 }
-
+/*
+// deprecated
 static int MJ_parse_true(MJ_context *c, MJ_value *v)
 {
 	EXPECT(c, 't');
@@ -46,14 +51,53 @@ static int MJ_parse_false(MJ_context *c, MJ_value *v)
 	v->type = MJ_FALSE;
 	return MJ_PARSE_OK;
 }
+*/
+static int MJ_parse_literal(MJ_context *c, MJ_value *v, const char *literal, MJ_type type)
+{
+	size_t i;
+	EXPECT(c, literal[0]);
+	for(i = 0; literal[i + 1]; i++)
+		if(c->json[i] != literal[i + 1])
+			return MJ_PARSE_INVALID_VALUE;
+	c->json += i;
+	v->type = type;
+	return MJ_PARSE_OK;
+}
 
 static int MJ_parse_number(MJ_context *c, MJ_value *v)
 {
-	char *end;
-	v->n = strtod(c->json, &end);
-	if(c->json == end)
+	const char *p = c->json;
+	if(*p == '-')
+		p++;
+	if(*p == '0')
+		p++;
+	else
+	{
+		if(!ISDIGIT1TO9(*p))
+			return MJ_PARSE_INVALID_VALUE;
+		for(p++; ISDIGIT(*p); p++);
+	}
+	if(*p == '.')
+	{
+		p++;
+		if(!ISDIGIT(*p))
+			return MJ_PARSE_INVALID_VALUE;
+		for(p++; ISDIGIT(*p); p++);
+	}
+	if(*p == 'e' || *p == 'E')
+	{
+		p++;
+		if(*p == '+' || *p == '-')
+			p++;
+		if(!ISDIGIT(*p))
+			return MJ_PARSE_INVALID_VALUE;
+		for(p++; ISDIGIT(*p); p++);
+	}
+	errno = 0;
+	v->n = strtod(c->json, NULL);
+	if(errno == ERANGE && (v->n == HUGE_VAL || v->n == -HUGE_VAL))
 		return MJ_PARSE_INVALID_VALUE;
-	c->json = end;
+	c->json = p;
 	v->type = MJ_NUMBER;
 	return MJ_PARSE_OK;
 }
@@ -62,9 +106,9 @@ static int MJ_parse_value(MJ_context *c, MJ_value *v)
 {
 	switch(*c->json)
 	{
-		case 't': return MJ_parse_true(c, v);
-		case 'f': return MJ_parse_false(c, v);
-		case 'n': return MJ_parse_null(c, v);
+		case 't': return MJ_parse_literal(c, v, "true", MJ_TRUE);
+		case 'f': return MJ_parse_literal(c, v, "false", MJ_FALSE);
+		case 'n': return MJ_parse_literal(c, v, "null", MJ_NULL);
 		default: return MJ_parse_number(c, v);
 		case '\0': return MJ_PARSE_EXPECT_VALUE;
 	}
