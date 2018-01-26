@@ -34,9 +34,11 @@ static int test_pass = 0;
 #define TEST_ERROR(error, json)\
 	do{\
 		MJ_value v;\
+		MJ_init(&v);\
 		v.type = MJ_FALSE;\
 		EXPECT_EQ_INT(error, MJ_parse(&v, json));\
-		EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));\
+		EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));\	
+		MJ_free(&v);\
 	}while(0)
 
 #define TEST_NUMBER(expect, json)\
@@ -227,6 +229,31 @@ static void test_parse_invalid_string_char()
     TEST_ERROR(MJ_PARSE_INVALID_STRING_CHAR, "\"\x1F\"");
 }
 
+static void test_parse_invalid_unicode_hex() 
+{
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_HEX, "\"\\u\"");
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_HEX, "\"\\u0\"");
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_HEX, "\"\\u01\"");
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_HEX, "\"\\u012\"");
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_HEX, "\"\\u/000\"");
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_HEX, "\"\\uG000\"");
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_HEX, "\"\\u0/00\"");
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_HEX, "\"\\u0G00\"");
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_HEX, "\"\\u0/00\"");
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_HEX, "\"\\u00G0\"");
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_HEX, "\"\\u000/\"");
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_HEX, "\"\\u000G\"");
+}
+
+static void test_parse_invalid_unicode_surrogate() 
+{
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uD800\"");
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uDBFF\"");
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uD800\\\\\"");
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uD800\\uDBFF\"");
+    TEST_ERROR(MJ_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uD800\\uE000\"");
+}
+
 static void test_access_null() 
 {
     MJ_value v;
@@ -284,6 +311,8 @@ static void test_parse()
 	test_parse_missing_quotation_mark();
     test_parse_invalid_string_escape();
     test_parse_invalid_string_char();
+    test_parse_invalid_unicode_hex();
+    test_parse_invalid_unicode_surrogate();
 
     test_access_null();
     test_access_boolean();
