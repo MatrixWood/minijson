@@ -11,7 +11,7 @@ static int test_pass = 0;
 	do {\
 		test_count++;\
 		if(equality)\
-			test_pass;\
+			test_pass++;\
 		else{\
 			fprintf(stderr, "%s:%d: expect: " format "actual: " format "\n", __FILE__, __LINE__, expect, actual);\
 			main_ret;\
