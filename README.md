@@ -38,6 +38,9 @@ array = %x5B ws [ value *( ws %x2C ws value ) ] ws %x5D
 ```
 
 %x5B : [
+
 %x2C : ,
+
 %x5D : ]
+
 ws   : whitespace
