@@ -1,3 +1,7 @@
+#ifdef _WINDOWS
+#define _CRTDBG_MAP_ALLOC
+#include <crtdbg.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,12 +19,17 @@ static int test_pass = 0;
 			test_pass++;\
 		else{\
 			fprintf(stderr, "%s:%d: expect: " format "actual: " format "\n", __FILE__, __LINE__, expect, actual);\
-			main_ret;\
+			main_ret = 1;\
 		}\
 	}while(0)
 
 #define EXPECT_EQ_INT(expect, actual) EXPECT_EQ_BASE((expect) == (actual), expect, actual, "%d")
 #define EXPECT_EQ_DOUBLE(expect, actual) EXPECT_EQ_BASE((expect) == (actual), expect, actual, "%.17g")
+#define EXPECT_EQ_STRING(expect, actual, alength)\
+	EXPECT_EQ_BASE(sizeof(expect) - 1 == alength && memcmp(expect, actual, alength) == 0, expect, actual, "%s")
+#define EXPECT_TRUE(actual) EXPECT_EQ_BASE((actual) != 0, "true", "false", "%s")
+#define EXPECT_FALSE(actual) EXPECT_EQ_BASE((actual) == 0, "false", "true", "%s")	
+
 
 #define TEST_ERROR(error, json)\
 	do{\
@@ -38,7 +47,17 @@ static int test_pass = 0;
 		EXPECT_EQ_DOUBLE(expect, MJ_get_number(&v));\
 	}while(0)
 
-//TEST_MARCO
+#define TEST_STRING(expect, json)\
+	do{\
+		MJ_value v;\
+		MJ_init(&v);\
+		EXPECT_EQ_INT(MJ_PARSE_OK, MJ_parse(&v, json));\
+		EXPECT_EQ_INT(MJ_STRING, MJ_get_type(&v));\
+		EXPECT_EQ_STRING(expect, MJ_get_string(&v), MJ_get_string_length(&v));\
+		MJ_free(&v);\
+	}while(0)
+
+//TEST_MARCO : if define this marco, there are some tests will never pass.
 #if 0
 #define TEST_MARCO 1
 #endif
@@ -48,25 +67,31 @@ static int test_pass = 0;
 static void test_parse_null() 
 {
 	MJ_value v;
-	v.type = MJ_FALSE;
+    MJ_init(&v);
+    MJ_set_boolean(&v, 0);
 	EXPECT_EQ_INT(MJ_PARSE_OK, MJ_parse(&v, "null"));
 	EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));
+	MJ_free(&v);
 }
 
 static void test_parse_true()
 {
 	MJ_value v;
-	v.type = MJ_FALSE;
+    MJ_init(&v);
+    MJ_set_boolean(&v, 0);
 	EXPECT_EQ_INT(MJ_PARSE_OK, MJ_parse(&v, "true"));
 	EXPECT_EQ_INT(MJ_TRUE, MJ_get_type(&v));
+	MJ_free(&v);
 }
 
 static void test_parse_false()
 {
 	MJ_value v;
-	v.type = MJ_FALSE;
+	MJ_init(&v);
+    MJ_set_boolean(&v, 0);
 	EXPECT_EQ_INT(MJ_PARSE_OK, MJ_parse(&v, "false"));
 	EXPECT_EQ_INT(MJ_FALSE, MJ_get_type(&v));
+	MJ_free(&v);
 }
 
 static void test_parse_number()
@@ -102,9 +127,18 @@ static void test_parse_number()
     TEST_NUMBER(-1.7976931348623157e+308, "-1.7976931348623157e+308");
 }
 
+static void test_parse_string() 
+{
+    TEST_STRING("", "\"\"");
+    TEST_STRING("Hello", "\"Hello\"");
+    TEST_STRING("Hello\nWorld", "\"Hello\\nWorld\"");
+    TEST_STRING("\" \\ / \b \f \n \r \t", "\"\\\" \\\\ \\/ \\b \\f \\n \\r \\t\"");
+}
+
 /*
 // deprecated
-static void test_parse_expect_value() {
+static void test_parse_expect_value() 
+{
 	MJ_value v;
 
 	v.type = MJ_FALSE;
@@ -116,7 +150,8 @@ static void test_parse_expect_value() {
 	EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));
 }
 
-static void test_parse_invalid_value() {
+static void test_parse_invalid_value() 
+{
 	MJ_value v;
 	v.type = MJ_FALSE;
 	EXPECT_EQ_INT(MJ_PARSE_INVALID_VALUE, MJ_parse(&v, "nul"));
@@ -128,7 +163,6 @@ static void test_parse_invalid_value() {
 }
 */
 
-// refactor
 static void test_parse_expect_value() 
 {
 	TEST_ERROR(MJ_PARSE_EXPECT_VALUE, "");
@@ -165,11 +199,75 @@ static void test_parse_root_not_singular()
 #endif
 }
 
-static void test_parse_number_too_big() {
+static void test_parse_number_too_big() 
+{
 #ifdef TEST_MARCO
     TEST_ERROR(MJ_PARSE_NUMBER_TOO_BIG, "1e309");
     TEST_ERROR(MJ_PARSE_NUMBER_TOO_BIG, "-1e309");
 #endif
+}
+
+static void test_parse_missing_quotation_mark() 
+{
+    TEST_ERROR(MJ_PARSE_MISS_QUOTATION_MARK, "\"");
+    TEST_ERROR(MJ_PARSE_MISS_QUOTATION_MARK, "\"abc");
+}
+
+static void test_parse_invalid_string_escape() 
+{
+    TEST_ERROR(MJ_PARSE_INVALID_STRING_ESCAPE, "\"\\v\"");
+    TEST_ERROR(MJ_PARSE_INVALID_STRING_ESCAPE, "\"\\'\"");
+    TEST_ERROR(MJ_PARSE_INVALID_STRING_ESCAPE, "\"\\0\"");
+    TEST_ERROR(MJ_PARSE_INVALID_STRING_ESCAPE, "\"\\x12\"");
+}
+
+static void test_parse_invalid_string_char() 
+{
+    TEST_ERROR(MJ_PARSE_INVALID_STRING_CHAR, "\"\x01\"");
+    TEST_ERROR(MJ_PARSE_INVALID_STRING_CHAR, "\"\x1F\"");
+}
+
+static void test_access_null() 
+{
+    MJ_value v;
+    MJ_init(&v);
+    MJ_set_string(&v, "a", 1);
+    MJ_set_null(&v);
+    EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));
+    MJ_free(&v);
+}
+
+static void test_access_boolean() 
+{
+    MJ_value v;
+    MJ_init(&v);
+    MJ_set_string(&v, "a", 1);
+    MJ_set_boolean(&v, 1);
+    EXPECT_TRUE(MJ_get_boolean(&v));
+    MJ_set_boolean(&v, 0);
+    EXPECT_FALSE(MJ_get_boolean(&v));
+    MJ_free(&v);
+}
+
+static void test_access_number()
+{
+    MJ_value v;
+    MJ_init(&v);
+    MJ_set_string(&v, "a", 1);
+    MJ_set_number(&v, 1234.5);
+    EXPECT_EQ_DOUBLE(1234.5, MJ_get_number(&v));
+    MJ_free(&v);
+}
+
+static void test_access_string()
+{
+	MJ_value v;
+	MJ_init(&v);
+	MJ_set_string(&v, "", 0);
+	EXPECT_EQ_STRING("", MJ_get_string(&v), MJ_get_string_length(&v));
+	MJ_set_string(&v, "Hello", 5);
+	EXPECT_EQ_STRING("Hello", MJ_get_string(&v), MJ_get_string_length(&v));
+	MJ_free(&v);
 }
 
 static void test_parse() 
@@ -178,13 +276,25 @@ static void test_parse()
 	test_parse_true();
 	test_parse_false();
 	test_parse_number();
+    test_parse_string();
 	test_parse_expect_value();
 	test_parse_invalid_value();
 	test_parse_root_not_singular();
 	test_parse_number_too_big();
+	test_parse_missing_quotation_mark();
+    test_parse_invalid_string_escape();
+    test_parse_invalid_string_char();
+
+    test_access_null();
+    test_access_boolean();
+    test_access_number();
+    test_access_string();
 }
 
 int main() {
+#ifdef _WINDOWS
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
 	test_parse();
 	printf("%d/%d (%3.2f%%) passed\n", test_pass, test_count, test_pass * 100.0 / test_count);
 	return main_ret;

@@ -3,16 +3,56 @@
 #include <errno.h>		/* error, ERANGE */
 #include <math.h>		/* HUGE_VAL */
 #include <stdlib.h>		/* NULL, strtod() */
+#include <string.h>  	/* memcpy() */
 
 #define EXPECT(c, ch) 	do { assert(*c->json == (ch)); c->json++; } while(0)
 #define ISDIGIT(ch)		((ch) >= '0' && (ch) <= '9')
 #define ISDIGIT1TO9(ch) ((ch) >= '1' && (ch) <= '9')
+#define PUTC(c, ch) do { *(char*)MJ_context_push(c, sizeof(char)) = (ch); } while(0)
 
+
+#ifndef MJ_PARSE_STACK_INIT_SIZE
+#define MJ_PARSE_STACK_INIT_SIZE 256
+#endif
+
+/*
+*	why need stack?
+*	case if we parse string, we make a dynamic array every time.
+*	it will waste more time.
+*/
 typedef struct
 {
 	const char *json;
+	char *stack;
+	size_t size, top;
 }MJ_context;
 
+static void* MJ_context_push(MJ_context *c, size_t size)
+{
+	void *ret;
+	assert(size > 0);
+	if(c->top + size >= c->size)
+	{
+		if(c->size == 0)
+			c->size = MJ_PARSE_STACK_INIT_SIZE;
+		while(c->top + size >= c->size)
+		{
+			c->size += c->size >> 1; // growth factor = 1.5
+		}
+		c->stack = (char *)realloc(c->stack, c->size);
+	}
+	ret = c->stack + c->top;
+	c->top += size;
+	return ret;
+}
+
+static void* MJ_context_pop(MJ_context *c, size_t size)
+{
+	assert(c->top >= size);
+	return c->stack + (c->top -= size);
+}
+
+// whitespace
 static void MJ_parse_whitespace(MJ_context *c)
 {
 	const char *p = c->json;
@@ -21,6 +61,8 @@ static void MJ_parse_whitespace(MJ_context *c)
 	c->json = p;
 }
 
+/*
+// deprecated
 static int MJ_parse_null(MJ_context *c, MJ_value *v)
 {
 	EXPECT(c, 'n');
@@ -30,8 +72,7 @@ static int MJ_parse_null(MJ_context *c, MJ_value *v)
 	v->type = MJ_NULL;
 	return MJ_PARSE_OK;
 }
-/*
-// deprecated
+
 static int MJ_parse_true(MJ_context *c, MJ_value *v)
 {
 	EXPECT(c, 't');
@@ -52,6 +93,8 @@ static int MJ_parse_false(MJ_context *c, MJ_value *v)
 	return MJ_PARSE_OK;
 }
 */
+
+// literal: null, true, false
 static int MJ_parse_literal(MJ_context *c, MJ_value *v, const char *literal, MJ_type type)
 {
 	size_t i;
@@ -64,6 +107,7 @@ static int MJ_parse_literal(MJ_context *c, MJ_value *v, const char *literal, MJ_
 	return MJ_PARSE_OK;
 }
 
+// number
 static int MJ_parse_number(MJ_context *c, MJ_value *v)
 {
 	const char *p = c->json;
@@ -94,12 +138,59 @@ static int MJ_parse_number(MJ_context *c, MJ_value *v)
 		for(p++; ISDIGIT(*p); p++);
 	}
 	errno = 0;
-	v->n = strtod(c->json, NULL);
-	if(errno == ERANGE && (v->n == HUGE_VAL || v->n == -HUGE_VAL))
+	v->u.n = strtod(c->json, NULL);
+	if(errno == ERANGE && (v->u.n == HUGE_VAL || v->u.n == -HUGE_VAL))
 		return MJ_PARSE_INVALID_VALUE;
 	c->json = p;
 	v->type = MJ_NUMBER;
 	return MJ_PARSE_OK;
+}
+
+static int MJ_parse_string(MJ_context *c, MJ_value *v)
+{
+	size_t head = c->top;
+	size_t len;
+	const char *p;
+	EXPECT(c, '\"');
+	p = c->json;
+	while(1)
+	{
+		char ch = *p++;
+		switch (ch) 
+		{
+            case '\"':
+                len = c->top - head;
+                MJ_set_string(v, (const char*)MJ_context_pop(c, len), len);
+                c->json = p;
+                return MJ_PARSE_OK;
+            case '\\':
+                switch (*p++) 
+                {
+                    case '\"': PUTC(c, '\"'); break;
+                    case '\\': PUTC(c, '\\'); break;
+                    case '/':  PUTC(c, '/' ); break;
+                    case 'b':  PUTC(c, '\b'); break;
+                    case 'f':  PUTC(c, '\f'); break;
+                    case 'n':  PUTC(c, '\n'); break;
+                    case 'r':  PUTC(c, '\r'); break;
+                    case 't':  PUTC(c, '\t'); break;
+                    default:
+                        c->top = head;
+                        return MJ_PARSE_INVALID_STRING_ESCAPE;
+                }
+                break;
+            case '\0':
+                c->top = head;
+                return MJ_PARSE_MISS_QUOTATION_MARK;
+            default:
+                if ((unsigned char)ch < 0x20) 
+                { 
+                    c->top = head;
+                    return MJ_PARSE_INVALID_STRING_CHAR;
+                }
+                PUTC(c, ch);
+        }
+	}
 }
 
 static int MJ_parse_value(MJ_context *c, MJ_value *v)
@@ -110,6 +201,7 @@ static int MJ_parse_value(MJ_context *c, MJ_value *v)
 		case 'f': return MJ_parse_literal(c, v, "false", MJ_FALSE);
 		case 'n': return MJ_parse_literal(c, v, "null", MJ_NULL);
 		default: return MJ_parse_number(c, v);
+		case '"':  return MJ_parse_string(c, v);
 		case '\0': return MJ_PARSE_EXPECT_VALUE;
 	}
 }
@@ -120,7 +212,9 @@ int MJ_parse(MJ_value *v, const char *json)
 	int ret;
 	assert(v != NULL);
 	c.json = json;
-	v->type = MJ_NULL;
+	c.stack = NULL;
+	c.size = c.top = 0;
+	MJ_init(v);
 	MJ_parse_whitespace(&c);
 	if((ret = MJ_parse_value(&c, v)) == MJ_PARSE_OK)
 	{
@@ -131,7 +225,17 @@ int MJ_parse(MJ_value *v, const char *json)
 			ret = MJ_PARSE_ROOT_NOT_SINGULAR;
 		}
 	}
+	assert(c.top == 0);
+	free(c.stack);
 	return ret;
+}
+
+void MJ_free(MJ_value *v)
+{
+	assert(v != NULL);
+	if(v->type == MJ_STRING)
+		free(v->u.s.s);
+	v->type = MJ_NULL;
 }
 
 MJ_type MJ_get_type(const MJ_value *v)
@@ -140,8 +244,50 @@ MJ_type MJ_get_type(const MJ_value *v)
 	return v->type;
 }
 
+int MJ_get_boolean(const MJ_value *v) 
+{
+    assert(v != NULL && (v->type == MJ_TRUE || v->type == MJ_FALSE));
+    return v->type == MJ_TRUE;
+}
+
+void MJ_set_boolean(MJ_value *v, int b) 
+{
+    MJ_free(v);
+    v->type = b ? MJ_TRUE : MJ_FALSE;
+}
+
+void MJ_set_number(MJ_value *v, double n) 
+{
+    MJ_free(v);
+    v->u.n = n;
+    v->type = MJ_NUMBER;
+}
+
 double MJ_get_number(const MJ_value *v)
 {
 	assert(v != NULL && v->type == MJ_NUMBER);
-	return v->n;
+	return v->u.n;
+}
+
+const char* MJ_get_string(const MJ_value *v) 
+{
+    assert(v != NULL && v->type == MJ_STRING);
+    return v->u.s.s;
+}
+
+size_t MJ_get_string_length(const MJ_value *v) 
+{
+    assert(v != NULL && v->type == MJ_STRING);
+    return v->u.s.len;
+}
+
+void MJ_set_string(MJ_value *v, const char *s, size_t len)
+{
+	assert(v != NULL && (s != NULL || len == 0));
+	MJ_free(v);
+	v->u.s.s = (char *)malloc(len + 1);
+	memcpy(v->u.s.s, s, len);
+	v->u.s.s[len] = '\0';
+	v->u.s.len = len;
+	v->type = MJ_STRING;
 }
