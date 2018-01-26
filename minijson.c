@@ -1,6 +1,6 @@
 #include "minijson.h"
 #include <assert.h>
-#include <stdlib.h>
+#include <stdlib.h>		/* NULL, strtod() */
 
 #define EXPECT(c, ch) do { assert(*c->json == (ch)); c->json++; } while(0)
 
@@ -47,6 +47,17 @@ static int MJ_parse_false(MJ_context *c, MJ_value *v)
 	return MJ_PARSE_OK;
 }
 
+static int MJ_parse_number(MJ_context *c, MJ_value *v)
+{
+	char *end;
+	v->n = strtod(c->json, &end);
+	if(c->json == end)
+		return MJ_PARSE_INVALID_VALUE;
+	c->json = end;
+	v->type = MJ_NUMBER;
+	return MJ_PARSE_OK;
+}
+
 static int MJ_parse_value(MJ_context *c, MJ_value *v)
 {
 	switch(*c->json)
@@ -54,8 +65,8 @@ static int MJ_parse_value(MJ_context *c, MJ_value *v)
 		case 't': return MJ_parse_true(c, v);
 		case 'f': return MJ_parse_false(c, v);
 		case 'n': return MJ_parse_null(c, v);
+		default: return MJ_parse_number(c, v);
 		case '\0': return MJ_PARSE_EXPECT_VALUE;
-		default: return MJ_PARSE_INVALID_VALUE;
 	}
 }
 
@@ -71,7 +82,10 @@ int MJ_parse(MJ_value *v, const char *json)
 	{
 		MJ_parse_whitespace(&c);
 		if(*c.json != '\0')
+		{
+			v->type = MJ_NULL;
 			ret = MJ_PARSE_ROOT_NOT_SINGULAR;
+		}
 	}
 	return ret;
 }
@@ -80,4 +94,10 @@ MJ_type MJ_get_type(const MJ_value *v)
 {
 	assert(v != NULL);
 	return v->type;
+}
+
+double MJ_get_number(const MJ_value *v)
+{
+	assert(v != NULL && v->type == MJ_NUMBER);
+	return v->n;
 }
