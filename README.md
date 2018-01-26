@@ -30,3 +30,9 @@ escape = %x5C          ; \
 quotation-mark = %x22  ; "
 unescaped = %x20-21 / %x23-5B / %x5D-10FFFF
 ```
+
+### type of JSON array
+
+```
+array = %x5B ws [ value *( ws %x2C ws value ) ] ws %x5D
+```
