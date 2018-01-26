@@ -14,19 +14,26 @@ typedef enum
 	MJ_OBJECT
 }MJ_type;
 
-typedef struct 
+typedef struct MJ_value MJ_value;
+
+typedef struct MJ_value
 {
 	union
 	{
 		struct
 		{
+			MJ_value *e;
+			size_t size;
+		}a;					/* array */
+		struct
+		{
 			char *s;
 			size_t len;
-		}s;				/* string */
-		double n;		/* number */
+		}s;					/* string */
+		double n;			/* number */
 	}u;
 	MJ_type type;
-}MJ_value;
+};
 
 enum
 {
@@ -39,7 +46,8 @@ enum
 	MJ_PARSE_INVALID_STRING_ESCAPE,
 	MJ_PARSE_INVALID_STRING_CHAR,
 	MJ_PARSE_INVALID_UNICODE_HEX,
-    MJ_PARSE_INVALID_UNICODE_SURROGATE
+    MJ_PARSE_INVALID_UNICODE_SURROGATE,
+    MJ_PARSE_MISS_COMMA_OR_SQUARE_BRACKET
 };
 
 #define MJ_init(v) do { (v)->type = MJ_NULL; } while(0)
@@ -61,5 +69,8 @@ void MJ_set_number(MJ_value *v, double n);
 const char* MJ_get_string(const MJ_value *v);
 size_t MJ_get_string_length(const MJ_value *v);
 void MJ_set_string(MJ_value *v, const char *s, size_t len);
+
+size_t MJ_get_array_size(const MJ_value* v);
+MJ_value* MJ_get_array_element(const MJ_value* v, size_t index);
 
 #endif
