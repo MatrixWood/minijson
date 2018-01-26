@@ -57,8 +57,26 @@ static void test_parse_root_not_singular() {
 	EXPECT_EQ_INT(MJ_NULL, MJ_get_type(&v));
 }
 
+static void test_parse_true()
+{
+	MJ_value v;
+	v.type = MJ_FALSE;
+	EXPECT_EQ_INT(MJ_PARSE_OK, MJ_parse(&v, "true"));
+	EXPECT_EQ_INT(MJ_TRUE, MJ_get_type(&v));
+}
+
+static void test_parse_false()
+{
+	MJ_value v;
+	v.type = MJ_FALSE;
+	EXPECT_EQ_INT(MJ_PARSE_OK, MJ_parse(&v, "false"));
+	EXPECT_EQ_INT(MJ_FALSE, MJ_get_type(&v));
+}
+
 static void test_parse() {
 	test_parse_null();
+	test_parse_true();
+	test_parse_false();
 	test_parse_expect_value();
 	test_parse_invalid_value();
 	test_parse_root_not_singular();

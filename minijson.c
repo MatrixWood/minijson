@@ -27,10 +27,32 @@ static int MJ_parse_null(MJ_context *c, MJ_value *v)
 	return MJ_PARSE_OK;
 }
 
+static int MJ_parse_true(MJ_context *c, MJ_value *v)
+{
+	EXPECT(c, 't');
+	if(c->json[0] != 'r' || c->json[1] != 'u' || c->json[2] != 'e')
+		return MJ_PARSE_INVALID_VALUE;
+	c->json += 3;
+	v->type = MJ_TRUE;
+	return MJ_PARSE_OK;
+}
+
+static int MJ_parse_false(MJ_context *c, MJ_value *v)
+{
+	EXPECT(c, 'f');
+	if(c->json[0] != 'a' || c->json[1] != 'l' || c->json[2] != 's' || c->json[3] != 'e')
+		return MJ_PARSE_INVALID_VALUE;
+	c->json += 4;
+	v->type = MJ_FALSE;
+	return MJ_PARSE_OK;
+}
+
 static int MJ_parse_value(MJ_context *c, MJ_value *v)
 {
 	switch(*c->json)
 	{
+		case 't': return MJ_parse_true(c, v);
+		case 'f': return MJ_parse_false(c, v);
 		case 'n': return MJ_parse_null(c, v);
 		case '\0': return MJ_PARSE_EXPECT_VALUE;
 		default: return MJ_PARSE_INVALID_VALUE;
@@ -40,11 +62,18 @@ static int MJ_parse_value(MJ_context *c, MJ_value *v)
 int MJ_parse(MJ_value *v, const char *json)
 {
 	MJ_context c;
+	int ret;
 	assert(v != NULL);
 	c.json = json;
 	v->type = MJ_NULL;
 	MJ_parse_whitespace(&c);
-	return MJ_parse_value(&c, v);
+	if((ret = MJ_parse_value(&c, v)) == MJ_PARSE_OK)
+	{
+		MJ_parse_whitespace(&c);
+		if(*c.json != '\0')
+			ret = MJ_PARSE_ROOT_NOT_SINGULAR;
+	}
+	return ret;
 }
 
 MJ_type MJ_get_type(const MJ_value *v)
